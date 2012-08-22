@@ -65,12 +65,18 @@ def sudo(command, show=True):
         return _sudo(command)
 
 def psql(sql, show=True):
+    """
+    Executes a psql command
+    """
     out = run('sudo -u postgres psql -c "%s"' % sql)
     if show:
        print_command(sql)
     return out
 
 def pip(modules):
+    """
+    Install the Python modules passed as arguments with pip
+    """
     with virtualenv():
         run('pip install %s' % modules)
 
@@ -103,20 +109,30 @@ def project():
 
 @log_call
 def generate_ssh_key():
+    """
+    Generates a key pair and displays the public key
+    """
     run('ssh-keygen -t rsa')
     run('cat ~/.ssh/id_rsa.pub')
 
 @log_call
 def install_aptitude():
-    sudo('apt-get install aptitude')
+    sudo('apt-get install aptitude -y')
 
 @log_call
 def upgrade():
+    """
+    Updates the repository definitions and upgrades the server
+    """
     sudo('aptitude update -y')
     sudo('aptitude upgrade -y')
 
 @log_call
 def install_base():
+    """
+    Installs the base software required to deploy an application
+    """
+    install_aptitude()
     sudo('aptitude install gcc make git-core nginx postgresql memcached python-dev python-setuptools supervisor postgresql-server-dev-all  -y')
     run('wget http://www.ijg.org/files/jpegsrc.v8d.tar.gz')
     run('tar xvzf jpegsrc.v8d.tar.gz')
@@ -142,10 +158,16 @@ def _create_database(name, password):
 
 @log_call
 def create_database():
+    """
+    Creates a database and a database user with the project name and the specified password
+    """
     _create_database(env.project_name, env.db_password)
 
 @log_call
 def create():
+    """
+    Stages the application on the server
+    """
     sudo('chown %s /srv' % env.user)
     with cd('/srv'):
         run('mkdir www')

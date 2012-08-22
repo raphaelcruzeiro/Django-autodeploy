@@ -22,6 +22,8 @@ config = {
     'db_password' : 'super3360',
     'manage_py_path' : 'src',
     'settings_path' : 'src/test',
+    'repository_type' : 'git',
+    'repository_url' : 'git@github.com:raphaelcruzeiro/Django-autodeploy.git'
 }
 
 env.key_filename = config['key_path']
@@ -32,6 +34,8 @@ env.db_password = config['db_password']
 env.project_path = '/srv/www/%s' % env.project_name
 env.application_path = '/srv/www/%s/application/%s' % (env.project_name, config['manage_py_path'])
 env.virtualenv_path = '%s/bin/activate' % env.project_path
+env.repository_type = config['repository_type']
+env.repository_url = config['repository_url']
 
 def _print(output):
     print
@@ -175,4 +179,8 @@ def create():
         run("virtualenv %s --distribute" % env.project_name)
 
     pip('django simplejson pytz PIL python-memcached south psycopg2 django-ses')
+
+    with cd(env.project_path):
+        run('%s clone %s %s' %(env.repository_type, env.repository_url, '%s/application' % env.project_path))
+
 

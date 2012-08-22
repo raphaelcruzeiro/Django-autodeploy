@@ -13,11 +13,25 @@ from fabric.colors import yellow, green, blue, red
 # Config  #
 ###########
 
-env.key_filename = '~/raphaelcruzeiro.pem'
-env.hosts = ['ec2-184-73-106-77.compute-1.amazonaws.com']
-env.user = 'ubuntu'
-env.project_name = 'test'
-env.db_password = 'super3360'
+config = {
+    'hosts' : ['ec2-184-73-106-77.compute-1.amazonaws.com'],
+    'key_path' : '~/raphaelcruzeiro.pem',
+    'user' : 'ubuntu',
+    'password' : '',
+    'project_name' : 'test',
+    'db_password' : 'super3360',
+    'manage_py_path' : 'src',
+    'settings_path' : 'src/test',
+}
+
+env.key_filename = config['key_path']
+env.hosts = config['hosts']
+env.user = config['user']
+env.project_name = config['project_name']
+env.db_password = config['db_password']
+env.project_path = '/srv/www/%s' % env.project_name
+env.application_path = '/srv/www/%s/application/%s' % (env.project_name, config['manage_py_path'])
+env.virtualenv_path = '%s/bin/activate' % env.project_path
 
 def _print(output):
     print
@@ -56,6 +70,10 @@ def psql(sql, show=True):
        print_command(sql)
     return out
 
+def pip(modules):
+    with virtualenv():
+        run('pip install %s' % modules)
+
 def log_call(func):
     @wraps(func)
     def logged(*args, **kawrgs):
@@ -63,6 +81,25 @@ def log_call(func):
         _print(green("\n".join([header, func.__name__, header]), bold=True))
         return func(*args, **kawrgs)
     return logged
+
+@contextmanager
+def virtualenv():
+    """
+    Run commands within the project's virtualenv.
+    """
+    with cd('%s/bin/' % env.project_path):
+        with prefix("source %s/bin/activate" % env.project_path):
+            yield
+
+
+@contextmanager
+def project():
+    """
+    Run commands within the project's directory.
+    """
+    with virtualenv():
+        with cd(env.application_path):
+            yield
 
 @log_call
 def generate_ssh_key():
@@ -80,7 +117,7 @@ def upgrade():
 
 @log_call
 def install_base():
-    sudo('aptitude install gcc make git-core nginx postgresql memcached python-dev python-setuptools supervisor -y')
+    sudo('aptitude install gcc make git-core nginx postgresql memcached python-dev python-setuptools supervisor postgresql-server-dev-all  -y')
     run('wget http://www.ijg.org/files/jpegsrc.v8d.tar.gz')
     run('tar xvzf jpegsrc.v8d.tar.gz')
     with cd('jpeg-8d'):
@@ -106,3 +143,14 @@ def _create_database(name, password):
 @log_call
 def create_database():
     _create_database(env.project_name, env.db_password)
+
+@log_call
+def create():
+    sudo('chown %s /srv' % env.user)
+    with cd('/srv'):
+        run('mkdir www')
+    with cd('/srv/www'):
+        run("virtualenv %s --distribute" % env.project_name)
+
+    pip('django simplejson pytz PIL python-memcached south psycopg2 django-ses')
+

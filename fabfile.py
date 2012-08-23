@@ -20,10 +20,10 @@ config = {
     'password' : '',
     'project_name' : 'test',
     'db_password' : 'super3360',
-    'manage_py_path' : 'src',
-    'settings_path' : 'src/test',
+    'manage_py_path' : '',
+    'settings_path' : '',
     'repository_type' : 'git',
-    'repository_url' : 'git@github.com:raphaelcruzeiro/Django-autodeploy.git'
+    'repository_url' : 'git@github.com:raphaelcruzeiro/webimage-live-demo-site.git'
 }
 
 env.key_filename = config['key_path']

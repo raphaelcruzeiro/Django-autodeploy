@@ -14,6 +14,7 @@ from fabric.colors import yellow, green, blue, red
 ###########
 
 config = {
+    'server_name' : 'ec2-184-73-106-77.compute-1.amazonaws.com',
     'hosts' : ['ec2-184-73-106-77.compute-1.amazonaws.com'],
     'key_path' : '~/raphaelcruzeiro.pem',
     'user' : 'ubuntu',
@@ -23,9 +24,13 @@ config = {
     'manage_py_path' : '',
     'settings_path' : '',
     'repository_type' : 'git',
-    'repository_url' : 'git@github.com:raphaelcruzeiro/webimage-live-demo-site.git'
+    'repository_url' : 'git@github.com:raphaelcruzeiro/webimage-live-demo-site.git',
+    'gunicorn_port' : '8000',
+    'aws_key' : '',
+    'aws_secret' : ''
 }
 
+env.server_name = config['server_name']
 env.key_filename = config['key_path']
 env.hosts = config['hosts']
 env.user = config['user']
@@ -36,6 +41,27 @@ env.application_path = '/srv/www/%s/application/%s' % (env.project_name, config[
 env.virtualenv_path = '%s/bin/activate' % env.project_path
 env.repository_type = config['repository_type']
 env.repository_url = config['repository_url']
+env.manage = "%s/bin/python %s/manage.py" % (env.project_path, env.application_path)
+env.gunicorn_port = config['gunicorn_port']
+env.settings_path = env.application_path if not len(config['settings_path']) else '%s/%s' % (env.application_path, config['settings_path'])
+env.aws_key = config['aws_key']
+env.aws_secret = config['aws_secret']
+
+templates = {
+    'django_settings' : {
+        'local_path' : 'templates/live_settings.py',
+        'remote_path' : '%s/local_settings.py' % env.settings_path
+    },
+    'gunicorn' : {
+        'local_path' : 'templates/gunicorn.conf.py',
+        'remote_path' : env.project_path
+    },
+    'nginx' : {
+        'local_path' : 'templates/nginx.conf',
+        'remote_path' : '/srv/nginx/sites-enabled/%s.conf' % env.project_name,
+        'reload_command' : '/etc/init.d/nginx restart'
+    }
+}
 
 def _print(output):
     print
@@ -111,6 +137,12 @@ def project():
         with cd(env.application_path):
             yield
 
+def manage(command):
+    """
+    Run a Django management command.
+    """
+    return run("%s %s" % (env.manage, command))
+
 @log_call
 def generate_ssh_key():
     """
@@ -130,6 +162,27 @@ def upgrade():
     """
     sudo('aptitude update -y')
     sudo('aptitude upgrade -y')
+
+def upload_template_and_reload(name):
+    template_settings = templates[name]
+    local_path = template_settings['local_path']
+    remote_path = template_settings['remote_path']
+    reload_command = template_settings.get('reload_command')
+    owner = template_settings.get("owner")
+    mode = template_settings.get("mode")
+
+    print '%s to %s' % (local_path, remote_path)
+
+    upload_template(local_path, remote_path, env, use_sudo=True)
+
+    if owner:
+        sudo("chown %s %s" % (owner, remote_path))
+    if mode:
+        sudo("chmod %s %s" % (mode, remote_path))
+
+    if reload_command:
+        sudo(reload_command)
+
 
 @log_call
 def install_base():
@@ -182,5 +235,11 @@ def create():
 
     with cd(env.project_path):
         run('%s clone %s %s' %(env.repository_type, env.repository_url, '%s/application' % env.project_path))
+
+    upload_template_and_reload('django_settings')
+    upload_template_and_reload('gunicorn')
+    upload_template_and_reload('nginx')
+
+    manage('syncdb')
 
 

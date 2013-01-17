@@ -14,9 +14,9 @@ from fabric.colors import yellow, green, blue, red
 ###########
 
 config = {
-    'server_name' : 'ec2-184-73-106-77.compute-1.amazonaws.com',
-    'hosts' : ['ec2-184-73-106-77.compute-1.amazonaws.com'],
-    'key_path' : '~/raphaelcruzeiro.pem',
+    'server_name' : 'ec2-23-22-71-51.compute-1.amazonaws.com',
+    'hosts' : ['ec2-23-22-71-51.compute-1.amazonaws.com'],
+    'key_path' : '~/keys/inspira.pem',
     'user' : 'ubuntu',
     'password' : '',
     'project_name' : 'test',
@@ -24,7 +24,7 @@ config = {
     'manage_py_path' : '',
     'settings_path' : '',
     'repository_type' : 'git',
-    'repository_url' : 'git@github.com:raphaelcruzeiro/webimage-live-demo-site.git',
+    'repository_url' : 'git@bitbucket.org:inspira_tecnologia/inspira_site.git',
     'gunicorn_port' : '8000',
     'aws_key' : '',
     'aws_secret' : ''
@@ -37,8 +37,8 @@ env.user = config['user']
 env.project_name = config['project_name']
 env.db_password = config['db_password']
 env.project_path = '/srv/www/%s' % env.project_name
-env.application_path = '/srv/www/%s/application/%s' % (env.project_name, config['manage_py_path'])
-env.virtualenv_path = '%s/bin/activate' % env.project_path
+env.application_path = '/srv/www/%s/%s' % (env.project_name, config['manage_py_path'])
+env.virtualenv_path = '%s/env/bin/activate' % env.project_path
 env.repository_type = config['repository_type']
 env.repository_url = config['repository_url']
 env.manage = "%s/bin/python %s/manage.py" % (env.project_path, env.application_path)
@@ -58,7 +58,7 @@ templates = {
     },
     'nginx' : {
         'local_path' : 'templates/nginx.conf',
-        'remote_path' : '/srv/nginx/sites-enabled/%s.conf' % env.project_name,
+        'remote_path' : '/etc/nginx/sites-enabled/%s.conf' % env.project_name,
         'reload_command' : '/etc/init.d/nginx restart'
     }
 }
@@ -123,8 +123,8 @@ def virtualenv():
     """
     Run commands within the project's virtualenv.
     """
-    with cd('%s/bin/' % env.project_path):
-        with prefix("source %s/bin/activate" % env.project_path):
+    with cd('%s/env/bin/' % env.project_path):
+        with prefix("source %s/env/bin/activate" % env.project_path):
             yield
 
 
@@ -229,12 +229,12 @@ def create():
     with cd('/srv'):
         run('mkdir www')
     with cd('/srv/www'):
-        run("virtualenv %s --distribute" % env.project_name)
-
-    pip('django simplejson pytz PIL python-memcached south psycopg2 django-ses')
+        run('%s clone %s %s' %(env.repository_type, env.repository_url, env.project_path))
 
     with cd(env.project_path):
-        run('%s clone %s %s' %(env.repository_type, env.repository_url, '%s/application' % env.project_path))
+        run("virtualenv env --distribute")
+        with virtualenv():
+            run('pip install -r %s/requirements' % env.project_path)
 
     upload_template_and_reload('django_settings')
     upload_template_and_reload('gunicorn')

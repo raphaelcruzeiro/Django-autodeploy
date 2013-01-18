@@ -191,6 +191,7 @@ def install_base():
     """
     install_aptitude()
     sudo('aptitude install gcc make git-core nginx postgresql memcached python-dev python-setuptools supervisor postgresql-server-dev-all  -y')
+
     run('wget http://www.ijg.org/files/jpegsrc.v8d.tar.gz')
     run('tar xvzf jpegsrc.v8d.tar.gz')
     with cd('jpeg-8d'):
@@ -201,6 +202,13 @@ def install_base():
     run('wget http://download.savannah.gnu.org/releases/freetype/freetype-2.4.10.tar.gz')
     run('tar xvzf freetype-2.4.10.tar.gz')
     with cd('freetype-2.4.10'):
+        run('./configure')
+        run('make')
+        sudo('make install')
+
+    run('wget http://zlib.net/zlib-1.2.7.tar.gz')
+    run('tar xvzf zlib-1.2.7.tar.gz')
+    with cd('zlib-1.2.7'):
         run('./configure')
         run('make')
         sudo('make install')

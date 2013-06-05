@@ -14,17 +14,17 @@ from fabric.colors import yellow, green, blue, red
 ###########
 
 config = {
-    'server_name' : 'ec2-23-22-71-51.compute-1.amazonaws.com',
-    'hosts' : ['ec2-23-22-71-51.compute-1.amazonaws.com'],
-    'key_path' : '~/keys/inspira.pem',
+    'server_name' : 'example.com',
+    'hosts' : ['example.com'],
+    'key_path' : '~/keys/mykey.pem',
     'user' : 'ubuntu',
     'password' : '',
-    'project_name' : 'test',
+    'project_name' : 'project',
     'db_password' : 'super3360',
     'manage_py_path' : '',
-    'settings_path' : '',
+    'settings_path' : 'Project',
     'repository_type' : 'git',
-    'repository_url' : 'git@bitbucket.org:inspira_tecnologia/inspira_site.git',
+    'repository_url' : 'git@example.com/project.git',
     'gunicorn_port' : '8000',
     'aws_key' : '',
     'aws_secret' : ''
@@ -41,7 +41,7 @@ env.application_path = '/srv/www/%s/%s' % (env.project_name, config['manage_py_p
 env.virtualenv_path = '%s/env/bin/activate' % env.project_path
 env.repository_type = config['repository_type']
 env.repository_url = config['repository_url']
-env.manage = "%s/bin/python %s/manage.py" % (env.project_path, env.application_path)
+env.manage = "%s/env/bin/python %s/manage.py" % (env.project_path, env.application_path)
 env.gunicorn_port = config['gunicorn_port']
 env.settings_path = env.application_path if not len(config['settings_path']) else '%s/%s' % (env.application_path, config['settings_path'])
 env.aws_key = config['aws_key']
@@ -60,6 +60,11 @@ templates = {
         'local_path' : 'templates/nginx.conf',
         'remote_path' : '/etc/nginx/sites-enabled/%s.conf' % env.project_name,
         'reload_command' : '/etc/init.d/nginx restart'
+    },
+    "supervisor": {
+        "local_path": "templates/supervisor.conf",
+        "remote_path": "/etc/supervisor/conf.d/%s.conf" % env.project_name,
+        "reload_command": "supervisorctl reload",
     }
 }
 
@@ -173,7 +178,7 @@ def upload_template_and_reload(name):
 
     print '%s to %s' % (local_path, remote_path)
 
-    upload_template(local_path, remote_path, env, use_sudo=True)
+    upload_template(local_path, remote_path, env, use_sudo=True, backup=False)
 
     if owner:
         sudo("chown %s %s" % (owner, remote_path))
@@ -190,7 +195,7 @@ def install_base():
     Installs the base software required to deploy an application
     """
     install_aptitude()
-    sudo('aptitude install gcc make git-core nginx postgresql memcached python-dev python-setuptools supervisor postgresql-server-dev-all  -y')
+    sudo('aptitude install gcc make git-core nginx postgresql memcached python-dev python-setuptools supervisor postgresql-server-dev-all libxml2-dev libxslt-dev -y')
 
     run('wget http://www.ijg.org/files/jpegsrc.v8d.tar.gz')
     run('tar xvzf jpegsrc.v8d.tar.gz')
@@ -206,15 +211,25 @@ def install_base():
         run('make')
         sudo('make install')
 
-    run('wget http://zlib.net/zlib-1.2.7.tar.gz')
-    run('tar xvzf zlib-1.2.7.tar.gz')
-    with cd('zlib-1.2.7'):
+    run('wget http://zlib.net/zlib-1.2.8.tar.gz')
+    run('tar xvzf zlib-1.2.8.tar.gz')
+    with cd('zlib-1.2.8'):
         run('./configure')
         run('make')
         sudo('make install')
 
+    # run('wget ftp://xmlsoft.org/libxml2/libxml2-git-snapshot.tar.gz')
+    # run('tar xvzf libxml2-git-snapshot.tar.gz')
+    # with cd('libxml2-2.9.1'):
+    #     run('./configure')
+    #     run('make')
+    #     sudo('make install')
+
     sudo('easy_install pip')
     sudo('pip install virtualenv mercurial')
+
+    run('echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config')
+    run('echo -e "Host bitbucket.org\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config')
 
 @log_call
 def _create_database(name, password):
@@ -227,6 +242,22 @@ def create_database():
     Creates a database and a database user with the project name and the specified password
     """
     _create_database(env.project_name, env.db_password)
+
+@log_call
+def fetch():
+    with cd(env.project_path):
+        run(
+            '%s pull %s' % (
+                env.repository_type,
+                 '-u' if env.repository_type == 'hg' else ''
+            )
+        )
+
+    with virtualenv():
+        manage('syncdb --noinput')
+        manage('migrate --all')
+        manage("migrate --noinput")
+        manage("collectstatic -v 0 --noinput")
 
 @log_call
 def create():
@@ -244,10 +275,29 @@ def create():
         with virtualenv():
             run('pip install -r %s/requirements' % env.project_path)
 
+    pip('python-memcached')
+
     upload_template_and_reload('django_settings')
     upload_template_and_reload('gunicorn')
     upload_template_and_reload('nginx')
+    upload_template_and_reload('supervisor')
 
-    manage('syncdb')
+    with virtualenv():
+        manage('syncdb --noinput')
+        manage('migrate --all')
+        manage("migrate --noinput")
+        manage("collectstatic -v 0 --noinput")
 
+    if exists('%sgunicorn.pid'):
+        sudo("kill -HUP 'cat %sgunicorn.pid'" % env.project_path)
+    else:
+        sudo("supervisorctl start %s:gunicorn" % env.project_name)
+
+@log_call
+def install_all():
+    install_aptitude()
+    upgrade()
+    install_base()
+    create_database()
+    create()
 

@@ -10,8 +10,8 @@ Usage
 -----
 
 Open the 'fabfile.py' and locate the config section. All you have to do is write your projects details there and the script will be ready to connect to the server.
-If you don't have a ssh keypair you can generate it running the command ''fab generate_ssh_key'' and then all you have to do is to copy the public key from the output to your Github or Bitbucket profile.
+If you don't have a ssh keypair you can generate it running the command ``fab generate_ssh_key`` and then all you have to do is to copy the public key from the output to your Github or Bitbucket profile.
 
-To fully install your application and all the necessary software needed to run it, just run ''fab isntall_all''.
-To fetch a new version from the repository and update you application, run ''fab fetch''.
+To fully install your application and all the necessary software needed to run it, just run ``fab install_all``.
+To fetch a new version from the repository and update you application, run ``fab fetch``.
 

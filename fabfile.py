@@ -14,17 +14,17 @@ from fabric.colors import yellow, green, blue, red
 ###########
 
 config = {
-    'server_name' : 'example.com',
-    'hosts' : ['example.com'],
-    'key_path' : '~/keys/mykey.pem',
+    'server_name' : 'revoltadasalada.com.br,
+    'hosts' : ['revoltadasalada.com.br'],
+    'key_path' : '~/keys/raphaelcruzeiro.pem',
     'user' : 'ubuntu',
     'password' : '',
-    'project_name' : 'project',
+    'project_name' : 'RevoltaDaSalada',
     'db_password' : 'super3360',
     'manage_py_path' : '',
-    'settings_path' : 'Project',
+    'settings_path' : 'RevoltaDaSalada',
     'repository_type' : 'git',
-    'repository_url' : 'git@example.com/project.git',
+    'repository_url' : 'git@github.com:RevoltaDaSaladaSaoPaulo/RevoltaDaSalada.git',
     'gunicorn_port' : '8000',
     'aws_key' : '',
     'aws_secret' : ''
@@ -73,12 +73,10 @@ def _print(output):
     print output
     print
 
-
 def print_command(command):
     _print(blue("$ ", bold=True) +
            yellow(command, bold=True) +
            red(" ->", bold=True))
-
 
 def run(command, show=True):
     """
@@ -88,7 +86,6 @@ def run(command, show=True):
         print_command(command)
     with hide("running"):
         return _run(command)
-
 
 def sudo(command, show=True):
     """
@@ -195,7 +192,7 @@ def install_base():
     Installs the base software required to deploy an application
     """
     install_aptitude()
-    sudo('aptitude install gcc make git-core nginx postgresql memcached python-dev python-setuptools supervisor postgresql-server-dev-all libxml2-dev libxslt-dev -y')
+    sudo('aptitude install gcc make git-core nginx postgresql rabbitmq-server memcached python-dev python-setuptools supervisor postgresql-server-dev-all libxml2-dev libxslt-dev -y')
 
     run('wget http://www.ijg.org/files/jpegsrc.v8d.tar.gz')
     run('tar xvzf jpegsrc.v8d.tar.gz')
@@ -241,7 +238,7 @@ def create_database():
     """
     Creates a database and a database user with the project name and the specified password
     """
-    _create_database(env.project_name, env.db_password)
+    _create_database(env.project_name.lower(), env.db_password.lower())
 
 @log_call
 def fetch():

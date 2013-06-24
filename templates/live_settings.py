@@ -4,9 +4,9 @@ DATABASES = {
         # Ends with "postgresql_psycopg2", "mysql", "sqlite3" or "oracle".
         "ENGINE": "django.db.backends.postgresql_psycopg2",
         # DB name or path to database file if using sqlite3.
-        "NAME": "%(project_name)s",
+        "NAME": "%(db_name)s",
         # Not used with sqlite3.
-        "USER": "%(project_name)s",
+        "USER": "%(db_name)s",
         # Not used with sqlite3.
         "PASSWORD": "%(db_password)s",
         # Set to empty string for localhost. Not used with sqlite3.
@@ -31,3 +31,4 @@ SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 
 AWS_ACCESS_KEY_ID = '%(aws_key)s'
 AWS_SECRET_ACCESS_KEY = '%(aws_secret)s'
+

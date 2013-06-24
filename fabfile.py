@@ -5,7 +5,7 @@ from getpass import getpass, getuser
 from glob import glob
 from contextlib import contextmanager
 
-from fabric.api import env, cd, prefix, sudo as _sudo, run as _run, hide
+from fabric.api import env, cd, prefix, sudo as _sudo, run as _run, hide, local, put
 from fabric.contrib.files import exists, upload_template
 from fabric.colors import yellow, green, blue, red
 
@@ -14,17 +14,17 @@ from fabric.colors import yellow, green, blue, red
 ###########
 
 config = {
-    'server_name' : 'revoltadasalada.com.br,
-    'hosts' : ['revoltadasalada.com.br'],
-    'key_path' : '~/keys/raphaelcruzeiro.pem',
+    'server_name' : '23.21.193.204',
+    'hosts' : ['23.21.193.204'],
+    'key_path' : '~/keys/otavio.pem',
     'user' : 'ubuntu',
     'password' : '',
-    'project_name' : 'RevoltaDaSalada',
+    'project_name' : 'cachola',
     'db_password' : 'super3360',
     'manage_py_path' : '',
-    'settings_path' : 'RevoltaDaSalada',
+    'settings_path' : 'cachola',
     'repository_type' : 'git',
-    'repository_url' : 'git@github.com:RevoltaDaSaladaSaoPaulo/RevoltaDaSalada.git',
+    'repository_url' : 'git@bitbucket.org:cachola/cacho.la.git',
     'gunicorn_port' : '8000',
     'aws_key' : '',
     'aws_secret' : ''
@@ -35,6 +35,7 @@ env.key_filename = config['key_path']
 env.hosts = config['hosts']
 env.user = config['user']
 env.project_name = config['project_name']
+env.db_name = env.project_name.lower()
 env.db_password = config['db_password']
 env.project_path = '/srv/www/%s' % env.project_name
 env.application_path = '/srv/www/%s/%s' % (env.project_name, config['manage_py_path'])
@@ -192,7 +193,11 @@ def install_base():
     Installs the base software required to deploy an application
     """
     install_aptitude()
-    sudo('aptitude install gcc make git-core nginx postgresql rabbitmq-server memcached python-dev python-setuptools supervisor postgresql-server-dev-all libxml2-dev libxslt-dev -y')
+    sudo(
+        "aptitude install gcc make git-core nginx postgresql memcached python-dev\
+         python-setuptools supervisor postgresql-server-dev-all libxml2-dev\
+          libxslt-dev redis-server rabbitmq-server -y"
+    )
 
     run('wget http://www.ijg.org/files/jpegsrc.v8d.tar.gz')
     run('tar xvzf jpegsrc.v8d.tar.gz')
@@ -215,22 +220,23 @@ def install_base():
         run('make')
         sudo('make install')
 
-    # run('wget ftp://xmlsoft.org/libxml2/libxml2-git-snapshot.tar.gz')
-    # run('tar xvzf libxml2-git-snapshot.tar.gz')
-    # with cd('libxml2-2.9.1'):
-    #     run('./configure')
-    #     run('make')
-    #     sudo('make install')
-
     sudo('easy_install pip')
     sudo('pip install virtualenv mercurial')
 
     run('echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config')
     run('echo -e "Host bitbucket.org\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config')
 
+    sudo('rabbitmqctl add_user %s %s' % (env.project_name, env.db_name))
+    sudo('rabbitmqctl add_vhost %s' % env.project_name)
+    sudo(
+        'rabbitmqctl set_permissions -p %s %s ".*" ".*" ".*"' %
+        (env.project_name, env.project_name)
+    )
+
 @log_call
 def _create_database(name, password):
     psql("CREATE USER %s WITH ENCRYPTED PASSWORD '%s';" % (name, password))
+    psql("ALTER USER %s CREATEDB;" % name)
     psql("CREATE DATABASE %s WITH OWNER %s ENCODING='UTF8';" % (env.project_name, env.project_name))
 
 @log_call
@@ -238,7 +244,7 @@ def create_database():
     """
     Creates a database and a database user with the project name and the specified password
     """
-    _create_database(env.project_name.lower(), env.db_password.lower())
+    _create_database(env.db_name, env.db_password)
 
 @log_call
 def fetch():
@@ -255,6 +261,10 @@ def fetch():
         manage('migrate --all')
         manage("migrate --noinput")
         manage("collectstatic -v 0 --noinput")
+        upload_template_and_reload('django_settings')
+        upload_template_and_reload('gunicorn')
+        upload_template_and_reload('nginx')
+        upload_template_and_reload('supervisor')
 
 @log_call
 def create():
@@ -297,4 +307,31 @@ def install_all():
     install_base()
     create_database()
     create()
+
+@log_call
+def create_superuser():
+    with virtualenv():
+        manage('createsuperuser')
+
+def send_key():
+    put('~/.ssh/id_rsa', '~/.ssh/id_rsa')
+    put('~/.ssh/id_rsa.pub', '~/.ssh/id_rsa.pub')
+    run('chmod 600 ~/.ssh/id_rsa')
+    run('chmod 600 ~/.ssh/id_rsa.pub')
+
+def vagrant():
+    # change from the default user to 'vagrant'
+    env.user = 'vagrant'
+    env.password = 'vagrant'
+    env.project_path = '/vagrant'
+    env.application_path = '/vagrant'
+    env.virtualenv_path = '%s/env/bin/activate' % env.project_path
+    env.manage = "%s/env/bin/python %s/manage.py" % (env.project_path, env.application_path)
+    # connect to the port-forwarded ssh
+    env.hosts = ['127.0.0.1:2222']
+
+    # use vagrant ssh key
+    result = local('vagrant ssh-config | grep IdentityFile', capture=True)
+    env.key_filename = result.split()[1][1:-1]
+
 
